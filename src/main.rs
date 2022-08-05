@@ -82,6 +82,7 @@ fn find_sets_of_5_dumb_loop(words: &Vec<Word>) {
                         }
                         num_sets_5 += 1;
 
+                        assert!((letters4 | we.letters).count_ones() == 25);
                         println!("{}, {}, {}, {}, {}",
                                  wa.word, wb.word, wc.word, wd.word, we.word);
                     }
@@ -91,6 +92,96 @@ fn find_sets_of_5_dumb_loop(words: &Vec<Word>) {
     }
     println!("Found {} words with unique letters", num_words);
     println!("Found {} pairs of words with unique letters", num_sets_2);
+    println!("Found {} sets of three words with unique letters", num_sets_3);
+    println!("Found {} sets of four words with unique letters", num_sets_4);
+    println!("Found {} sets of five words with unique letters", num_sets_5);
+}
+
+struct Range {
+    start: u32,
+    end: u32,
+}
+
+struct WordPair {
+    words: [u16; 2],
+}
+
+fn find_sets_of_5_pair_graph(words: &Vec<Word>) {
+    // We assume word indices fit in a u16
+    let num_words: u16 = words.len().try_into().unwrap();
+
+    let mut pairs: Vec<WordPair> = Vec::new();
+    let mut ranges: Vec<Range> = Vec::new();
+    for a in 0..num_words {
+        let range_start = pairs.len();
+        let wa = &words[a as usize];
+        for b in (a+1)..num_words {
+            let wb = &words[b as usize];
+            if (wa.letters & wb.letters) == 0 {
+                pairs.push(WordPair {
+                    words: [a, b],
+                });
+            }
+        }
+
+        assert!(ranges.len() == a.into());
+        ranges.push(Range {
+            start: range_start.try_into().unwrap(),
+            end: pairs.len().try_into().unwrap(),
+        });
+    }
+    assert!(ranges.len() == words.len());
+
+    let mut num_sets_3: u32 = 0;
+    let mut num_sets_4: u32 = 0;
+    let mut num_sets_5: u32 = 0;
+
+    for p in &pairs {
+        let a = p.words[0] as usize;
+        let b = p.words[1] as usize;
+        let wa = &words[a];
+        let wb = &words[b];
+        let letters2 = wa.letters | wb.letters;
+
+        for pb in &pairs[(ranges[b].start as usize)..(ranges[b].end as usize)] {
+            let c = pb.words[1] as usize;
+            let wc = &words[c];
+
+            if (letters2 & wc.letters) != 0 {
+                continue;
+            }
+            num_sets_3 += 1;
+            let letters3 = letters2 | wc.letters;
+
+            for pc in &pairs[(ranges[c].start as usize)..(ranges[c].end as usize)] {
+                let d = pc.words[1] as usize;
+                let wd = &words[d];
+
+                if (letters3 & wd.letters) != 0 {
+                    continue;
+                }
+                num_sets_4 += 1;
+                let letters4 = letters3 | wd.letters;
+
+                for pd in &pairs[(ranges[d].start as usize)..(ranges[d].end as usize)] {
+                    let e = pd.words[1] as usize;
+                    let we = &words[e];
+
+                    if (letters4 & we.letters) != 0 {
+                        continue;
+                    }
+                    num_sets_5 += 1;
+
+                    assert!((letters4 | we.letters).count_ones() == 25);
+                    println!("{}, {}, {}, {}, {}",
+                             wa.word, wb.word, wc.word, wd.word, we.word);
+                }
+            }
+        }
+    }
+
+    println!("Found {} words with unique letters", num_words);
+    println!("Found {} pairs of words with unique letters", pairs.len());
     println!("Found {} sets of three words with unique letters", num_sets_3);
     println!("Found {} sets of four words with unique letters", num_sets_4);
     println!("Found {} sets of five words with unique letters", num_sets_5);
@@ -128,5 +219,6 @@ fn main() {
     words.sort_by_key(|w| w.letters.reverse_bits());
     words.dedup_by_key(|w| w.letters);
 
-    find_sets_of_5_dumb_loop(&words);
+//    find_sets_of_5_dumb_loop(&words);
+    find_sets_of_5_pair_graph(&words);
 }

@@ -33,7 +33,7 @@ we can check if a word has 5 unique letters with
 bits with `(a.letters & b.letters) != 0`.  While this doesn't improve the
 algorithmic runtime at all it does reduce the constant factor a lot.
 
-### 3. Use a dumb loop
+### 3a. Use a dumb loop
 
 Matt was actually a bit too clever in his approach.  The idea of comparing
 pairs of pairs looks good on the face, but it's actually worse than a
@@ -63,3 +63,20 @@ storage so the only thing my implementation has to store is the original
 list of words and my list of words converted to bitsets.  The intermediate
 sets of 2, 3, 4, and 5 words are never stored, leading to what's likely a
 much lower memory footprint.
+
+### 3b. Use slightly cleverer dumb loop
+
+While the dumb loop approach cuts out an order of magnitude, it's still way
+slower than we want.  A lot of this comes from the fact that we keep trying
+all sorts of word combinations we should know up-front won't work.  The new
+approach is a bit of a hybrid.  First, we compute the list of all pairs that
+have 10 unique letters.  At the same time, for each word, we record its range
+in the list of pairs where that word matches the first element in the pair.
+
+Armed with these pairs, we're able to do the final loop.  Instead of iterating
+over all the words later in list like we did in the original dumb version, we
+look up the range for the last word in our set and walk that subrange of the
+list of pairs and look at the other word in the pair.  If you consider the
+words as nodes in a graph with edges wherever two words share no letters, this
+is the equivalent of walking only the edges coming out of a node rather than
+all the nodes (words) in the graph.  This significantly reduces the runtime.
