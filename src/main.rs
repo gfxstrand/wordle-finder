@@ -97,6 +97,7 @@ fn find_sets_of_5_dumb_loop(words: &Vec<Word>) {
     println!("Found {} sets of five words with unique letters", num_sets_5);
 }
 
+#[derive(Clone)]
 struct Range {
     start: u32,
     end: u32,
@@ -187,6 +188,111 @@ fn find_sets_of_5_pair_graph(words: &Vec<Word>) {
     println!("Found {} sets of five words with unique letters", num_sets_5);
 }
 
+#[derive(Clone)]
+struct WordSet {
+    parent: u32,
+    new_word: u16,
+    letters: u32,
+}
+
+fn find_sets_of_5_worklist(words: &Vec<Word>) {
+    // We assume word indices fit in a u16
+    let num_words: u16 = words.len().try_into().unwrap();
+
+    let mut sets: Vec<WordSet> = Vec::new();
+    let mut ranges: Vec<Range> = Vec::new();
+    ranges.resize(1 << 26, Range { start: 0, end: 0 });
+
+    // Initial empty word set
+    sets.push(WordSet {
+        parent: u32::MAX,
+        new_word: u16::MAX,
+        letters: 0,
+    });
+
+    for i in 0..num_words {
+        sets.push(WordSet {
+            parent: 0,
+            new_word: i,
+            letters: words[i as usize].letters
+        });
+    }
+    ranges[0] = Range {
+        start: 1,
+        end: sets.len().try_into().unwrap(),
+    };
+
+    let mut num_sets: [u32; 5] = [ num_words.into(), 0, 0, 0, 0 ];
+
+    // Skip the empty set at the start
+    let mut item: usize = 1;
+    loop {
+        if item == sets.len() {
+            break;
+        }
+
+        let set = sets[item].clone();
+        let set_idx: u32 = item.try_into().unwrap();
+
+        let set_words = set.letters.count_ones() / 5;
+        if set_words == 5 {
+            break;
+        }
+        item += 1;
+
+        let range = &ranges[sets[set.parent as usize].letters as usize];
+
+        let start: u32 = sets.len().try_into().unwrap();
+        for i in range.start..range.end {
+            let other = sets[i as usize].clone();
+            if other.new_word <= set.new_word {
+                continue;
+            }
+
+            let new_word = &words[other.new_word as usize];
+            if (set.letters & new_word.letters) == 0 {
+                sets.push(WordSet {
+                    parent: set_idx,
+                    new_word: other.new_word,
+                    letters: set.letters | new_word.letters,
+                });
+            }
+        }
+        let end: u32 = sets.len().try_into().unwrap();
+        ranges[set.letters as usize] = Range {
+            start: start,
+            end: end,
+        };
+        num_sets[set_words as usize] += end - start;
+    }
+
+    for i in item..sets.len() {
+        let mut set = &sets[i];
+        assert!(set.letters.count_ones() == 25);
+        let mut set_words = Vec::new();
+        loop {
+            set_words.push(set.new_word);
+            set = &sets[set.parent as usize];
+            if set.letters == 0 {
+                break;
+            }
+        }
+        assert!(set_words.len() == 5);
+        println!("{}, {}, {}, {}, {}",
+                 words[set_words[4] as usize].word,
+                 words[set_words[3] as usize].word,
+                 words[set_words[2] as usize].word,
+                 words[set_words[1] as usize].word,
+                 words[set_words[0] as usize].word);
+    }
+
+    println!("Found {} words with unique letters", num_sets[0]);
+    println!("Found {} pairs of words with unique letters", num_sets[1]);
+    println!("Found {} sets of three words with unique letters", num_sets[2]);
+    println!("Found {} sets of four words with unique letters", num_sets[3]);
+    println!("Found {} sets of five words with unique letters", num_sets[4]);
+}
+
 fn main() {
     // Open the file name given as a command line argument
     let args: Vec<String> = env::args().collect();
@@ -220,5 +326,6 @@ fn main() {
     words.dedup_by_key(|w| w.letters);
 
 //    find_sets_of_5_dumb_loop(&words);
-    find_sets_of_5_pair_graph(&words);
+//    find_sets_of_5_pair_graph(&words);
+    find_sets_of_5_worklist(&words);
 }
