@@ -103,6 +103,23 @@ struct Range {
     end: u32,
 }
 
+impl Range {
+    fn from_usize(start: usize, end: usize) -> Range {
+        Range {
+            start: start.try_into().unwrap(),
+            end: end.try_into().unwrap(),
+        }
+    }
+
+    fn empty() -> Range {
+        Range { start: 0, end: 0, }
+    }
+
+    fn len(&self) -> u32 {
+        self.end - self.start
+    }
+}
+
 struct WordPair {
     words: [u16; 2],
 }
@@ -193,82 +210,77 @@ struct WordSet {
     parent: u32,
     new_word: u16,
     letters: u32,
+    range: Range,
 }
 
-fn find_sets_of_5_worklist(words: &Vec<Word>) {
+fn find_sets_of_5_dynamic(words: &Vec<Word>) {
     // We assume word indices fit in a u16
     let num_words: u16 = words.len().try_into().unwrap();
 
     let mut sets: Vec<WordSet> = Vec::new();
-    let mut ranges: Vec<Range> = Vec::new();
-    ranges.resize(1 << 26, Range { start: 0, end: 0 });
-
     // Initial empty word set
     sets.push(WordSet {
         parent: u32::MAX,
         new_word: u16::MAX,
         letters: 0,
+        range: Range::empty(),
     });
 
     for i in 0..num_words {
         sets.push(WordSet {
             parent: 0,
             new_word: i,
-            letters: words[i as usize].letters
+            letters: words[i as usize].letters,
+            range: Range::empty(),
         });
     }
-    ranges[0] = Range {
-        start: 1,
-        end: sets.len().try_into().unwrap(),
-    };
+    sets[0].range = Range::from_usize(1, sets.len());
 
     let mut num_sets: [u32; 5] = [ num_words.into(), 0, 0, 0, 0 ];
 
-    // Skip the empty set at the start
-    let mut item: usize = 1;
+    let mut parent_idx: u32 = 0;
     loop {
-        if item == sets.len() {
+        let parent = sets[parent_idx as usize].clone();
+        parent_idx += 1;
+
+        let parent_words = parent.letters.count_ones() / 5;
+        if parent_words == 4 {
             break;
         }
 
-        let set = sets[item].clone();
-        let set_idx: u32 = item.try_into().unwrap();
+        for i in parent.range.start..parent.range.end {
+            let si = sets[i as usize].clone();
 
-        let set_words = set.letters.count_ones() / 5;
-        if set_words == 5 {
-            break;
-        }
-        item += 1;
-
-        let range = &ranges[sets[set.parent as usize].letters as usize];
-
-        let start: u32 = sets.len().try_into().unwrap();
-        for i in range.start..range.end {
-            let other = sets[i as usize].clone();
-            if other.new_word <= set.new_word {
-                continue;
+            let start = sets.len();
+            for j in i..parent.range.end {
+                let new_word_idx = sets[j as usize].new_word;
+                let new_word = &words[new_word_idx as usize];
+                if (si.letters & new_word.letters) == 0 {
+                    sets.push(WordSet {
+                        parent: i,
+                        new_word: new_word_idx,
+                        letters: si.letters | new_word.letters,
+                        range: Range::empty(),
+                    });
+                }
             }
-
-            let new_word = &words[other.new_word as usize];
-            if (set.letters & new_word.letters) == 0 {
-                sets.push(WordSet {
-                    parent: set_idx,
-                    new_word: other.new_word,
-                    letters: set.letters | new_word.letters,
-                });
-            }
+            let child_range = Range::from_usize(start, sets.len());
+            num_sets[parent_words as usize + 1] += child_range.len();
+            sets[i as usize].range = child_range;
         }
-        let end: u32 = sets.len().try_into().unwrap();
-        ranges[set.letters as usize] = Range {
-            start: start,
-            end: end,
-        };
-        num_sets[set_words as usize] += end - start;
     }
 
-    for i in item..sets.len() {
-        let mut set = &sets[i];
-        assert!(set.letters.count_ones() == 25);
+    let mut start5 = sets.len() - 1;
+    loop {
+        if sets[start5 - 1].letters.count_ones() < 25 {
+            break;
+        }
+        start5 -= 1;
+    }
+    num_sets[4] = (sets.len() - start5).try_into().unwrap();
+
+    for i in start5..sets.len() {
+        let mut set = &sets[i as usize];
         let mut set_words = Vec::new();
         loop {
             set_words.push(set.new_word);
@@ -278,6 +290,7 @@ fn find_sets_of_5_worklist(words: &Vec<Word>) {
             }
         }
         assert!(set_words.len() == 5);
+
         println!("{}, {}, {}, {}, {}",
                  words[set_words[4] as usize].word,
                  words[set_words[3] as usize].word,
@@ -327,5 +340,5 @@ fn main() {
 
 //    find_sets_of_5_dumb_loop(&words);
 //    find_sets_of_5_pair_graph(&words);
-    find_sets_of_5_worklist(&words);
+    find_sets_of_5_dynamic(&words);
 }
